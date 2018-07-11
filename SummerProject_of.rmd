@@ -1,0 +1,162 @@
+
+
+---
+title: "Summer Project"
+Subject : What your income will be after graduation
+author: "Oscar F"
+date: "July 1, 2018"
+output: word_document
+---
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(caret)
+library(dplyr)
+library(ISLR)
+library(MASS)
+library(VIM)
+library(corrplot)
+library(mlbench)
+library(readr)
+library(mlbench)
+```
+
+
+
+
+```{r}
+dataset<- read.csv('C:/Users/Oscar Ferreiro/Desktop/Summer_Project/Dataset_13_14.csv')
+#summary(dataset)
+#str(dataset)
+```
+
+```{r}
+#Replacing NULL and PrivacySuppressed values  with NA
+
+dataset[dataset =="NULL"] <- NA
+dataset[dataset =="PrivacySuppressed"] <- NA
+head(dataset)
+```
+```{r}
+#Na.count 
+na_count1 <-sapply(dataset, function(y) sum(length(which(is.na(y)))))
+
+na_count1 <- data.frame(na_count1)
+
+na_count1 <- na_count1[order(-na_count1),]
+
+#na_count1
+
+
+
+```
+
+
+
+
+
+```{r}
+par(bg = FALSE)
+plot(na_count1, type="o", col="red", xlim=c(0,1825),xlab = "Variables",ylab = "Count of Missing Values", xaxt='n')
+title(main="Missing Values", col.main="Black", font.main=4)
+axis(side=1, at=seq(0, 1800, by=300))
+#axis(4, at=seq(0, 8000, by=1000))
+axis(4, at=2000, lab="25%")
+axis(4, at=4000, lab="50%")
+axis(4, at=6000, lab="75%")
+axis(4, at=8000, lab="100%")
+
+
+abline(h=c(2000,4000,6000), col="black", lty=100000)
+
+#
+#plot(na_count1)
+#axis(1, at=500, lab="1825")
+#plot(0:23, d, type='b', axes=FALSE)
+#axis(side=1, at=c(0:23))
+
+#box()
+
+```
+
+
+```{r}
+# remove the variables that are entirely NA
+dataset1 <- dataset %>% select_if(~sum(!is.na(.)) > 0)
+```
+
+
+
+```{r}
+#remove Zero variance variables
+zeroVar <- function(data, useNA = 'ifany') {
+    out <- apply(data, 2, function(x) {length(table(x, useNA = useNA))})
+    which(out==1)
+}
+
+dataset1[,-zeroVar(dataset1[-1,], useNA = 'no')]
+
+#str(dataset1) #only 5 variables are removed
+```
+
+
+
+```{r}
+
+## Remove columns with more than 60% NA
+dataset2=dataset1[, -which(colMeans(is.na(dataset1)) > 0.6)]
+
+#Create a small sample to review 
+datasamp=sample_n(dataset2, 20)
+datasamp
+```
+
+
+
+```{r}
+#Converts to Numeric
+
+cols = c(1:3);    
+dataset2[,cols] = apply(dataset2[,cols], 2, function(x) as.numeric(as.character(x)));
+
+dataset2$ZIP <- as.numeric(as.character(dataset2$ZIP))
+
+cols = c(16:53);    
+dataset2[,cols] = apply(dataset2[,cols], 2, function(x) as.numeric(as.character(x)));
+
+cols = c(245:851);    
+dataset2[,cols] = apply(dataset2[,cols], 2, function(x) as.numeric(as.character(x)));
+
+
+cols = c(853:856);    
+dataset2[,cols] = apply(dataset2[,cols], 2, function(x) as.numeric(as.character(x)));
+
+dataset2$UGNONDS <- as.numeric(as.character(dataset2$UGNONDS))
+
+
+#Converts to Factor
+dataset2$MAIN<- as.factor(dataset2$MAIN)
+dataset2$NUMBRANCH<- as.factor(dataset2$NUMBRANCH)
+dataset2$PREDDEG<- as.factor(dataset2$PREDDEG)
+dataset2$HIGHDEG<- as.factor(dataset2$HIGHDEG)
+dataset2$CONTROL<- as.factor(dataset2$CONTROL)
+dataset2$ST_FIPS<- as.factor(dataset2$ST_FIPS)
+dataset2$REGION<- as.factor(dataset2$REGION)
+dataset2$ICLEVEL<- as.factor(dataset2$ICLEVEL)
+
+
+#Confirm Lists
+numerics=select_if(dataset2, is.numeric)
+factors=select_if(dataset2, is.factor)
+
+
+```
+
+
