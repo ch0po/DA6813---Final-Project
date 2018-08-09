@@ -1,0 +1,398 @@
+---
+title: "Cleaning_Summer_project"
+author: "Mirza Hanane"
+date: "July 19, 2018"
+output: word_document
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Libraries
+
+```{r}
+
+library(caret)
+library(dplyr)
+library(lattice)
+library(ggplot2)
+library(ClustOfVar)
+library(Hmisc)
+#library(dendextend)
+library(colorspace)
+library(corrplot)
+#library(factoextra)
+library(MASS)
+library(earth)
+
+library(mda)
+
+#library(DMwR)
+```
+
+
+****************************Loading and joining raw data***********************************
+
+```{r}
+#Load raw datasets
+#dataset1 <- read.csv("C:/Users/hmirza/Desktop/Hanan_utsa/Summer_project/Dataset_2013.csv", na = c("NULL", "PrivacySuppressed"))
+#dataset2 <- read.csv("C:/Users/hmirza/Desktop/Hanan_utsa/Summer_project/Dataset_2014.csv", na = c("NULL", "PrivacySuppressed"))
+
+
+#dictionary <- read.csv("C:/Users/hmirza/Desktop/Hanan_utsa/Summer_project/Dictionary.csv")
+```
+
+Path for home computer
+```{r}
+dataset1 <- read.csv("C:/Users/Oscar Ferreiro/Desktop/Summer_Project/Dataset_2013.csv", na = c("NULL", "PrivacySuppressed"))
+dataset2 <- read.csv("C:/Users/Oscar Ferreiro/Desktop/Summer_Project/Dataset_2014.csv", na = c("NULL", "PrivacySuppressed"))
+#dictionary <- read.csv("C:/Users/hana_/Desktop/Summer_project/CollegeScorecardDataDictionary-09-12-2015.csv")
+```
+
+
+```{r}
+#Joining Datasets
+
+dataset <- rbind(dataset1, dataset2) 
+dim(dataset)
+
+```
+
+
+
+
+
+
+
+*********************************Identifying missing data**************************
+
+```{r}
+#Replacing NULL and PrivacySuppressed values  with NA
+dim(dataset)
+
+dataset[dataset =="NULL"] <- NA
+dataset[dataset =="PrivacySuppressed"] <- NA
+
+```
+
+
+
+How much NA in each variable
+```{r}
+
+sapply(dataset, function(x) sum(is.na(x)))
+```
+
+It is almost concerning that we have large amounts of missing data, from the output above. 
+
+
+Let's make a heatmap of some scaled values so we can see what is going on here with missing values.
+
+Is the missigness informative? 
+
+```{r}
+library(Amelia)
+missmap(dataset, col=c("red", "navy"), legend = TRUE, rank.order = FALSE,
+        y.labels = NULL, y.at = NULL)
+```
+
+*************************Data Cleaning******************************Data Cleaning*******************************************Data Cleaning Cleaning***
+
+
+
+A- Removing empty records
+
+First step: Remove the variables that are entirely NA
+```{r}
+
+dataset <- dataset %>% select_if(~sum(!is.na(.)) > 0)
+dim(dataset)
+```
+
+
+Step2:  Remove variables with more than 60% NA
+```{r}
+
+dataset=dataset[, -which(colMeans(is.na(dataset)) > 0.6)]
+dim(dataset)
+```
+
+Step3: Remove the rows that are all NA. 6979
+
+```{r}
+
+data <- Filter(function(x)!all(is.na(x)), dataset)
+dim(dataset)
+```
+
+Step4: Remove the variables that have "0" variance
+
+```{r}
+#remove Zero variance variables
+zeroVar <- function(data, useNA = 'ifany') {
+    out <- apply(data, 2, function(x) {length(table(x, useNA = useNA))})
+    which(out==1)
+}
+
+dataset<- dataset[,-zeroVar(dataset[-1,], useNA = 'no')]
+
+dim(dataset)
+```
+
+Step6: Remove the variables that have near "0" variance
+```{r}
+#remove near Zero variance variables using nearZero function from the caret package
+
+
+x = nearZeroVar(dataset)
+
+dataset<- dataset[,-x]
+
+dim(dataset)
+```
+
+
+
+B- Missing data imputation 
+
+Step 1_ Visualizing the missigness
+```{r}
+
+#Na.count 
+na_count1 <-sapply(dataset, function(y) sum(length(which(is.na(y)))))
+
+na_count1 <- data.frame(na_count1)
+
+na_count1 <- na_count1[order(-na_count1),]
+
+
+na_count1[1:10]
+
+par(bg = FALSE)
+plot(na_count1, type="o", col="red", xlim=c(0,1825),xlab = "Variables",ylab = "Count of Missing Values", xaxt='n')
+title(main="Missing Values", col.main="Black", font.main=4)
+axis(side=1, at=seq(0, 1800, by=300))
+#axis(4, at=seq(0, 8000, by=1000))
+axis(4, at=2000, lab="25%")
+axis(4, at=4000, lab="50%")
+axis(4, at=6000, lab="75%")
+axis(4, at=8000, lab="100%")
+
+
+abline(h=c(2000,4000,6000), col="black", lty=100000)
+
+```
+
+B-spliting data to categorical and continuous variables for imputation purposes
+
+```{r}
+# the categorical integers that are dummy coded but labled as integer will be classified as factors for easy processing
+
+names <- c('SCH_DEG' ,'MAIN', 'NUMBRANCH', 'PREDDEG', 'HIGHDEG', 'CONTROL', 'CIP03BACHL', 'CIP05BACHL',          'CIP09BACHL','CIP11BACHL','CIP13BACHL','CIP14BACHL','CIP15BACHL','CIP16BACHL','CIP23BACHL','CIP24BACHL','CIP26BACHL', 'CIP27BACHL',
+           'CIP30BACHL','CIP31BACHL','CIP38BACHL','CIP40BACHL','CIP42BACHL', 'CIP43BACHL', 'CIP44BACHL', 'CIP45BACHL', 'CIP50BACHL', 'CIP51BACHL', 'CIP52BACHL', 'CIP54BACHL')
+           
+          
+dataset[,names] <- lapply(dataset[,names] , factor)
+str(dataset)
+str(dataset[,names])
+
+```
+
+
+```{r}
+# the continuous integers that are coded as integers but should be numeric 
+
+
+nums <- c('UGDS', 'NPT4_PRIV', 'NPT41_PRIV', 'NPT42_PRIV', 'NPT43_PRIV', 'NPT4_048_PRIV', 'NPT4_3075_PRIV', 'NUM4_PRIV', 'NUM41_PRIV', 'NUM42_PRIV',
+         'NUM43_PRIV', 'NUM44_PRIV', 'NUM45_PRIV', 'COSTT4_A', 'TUITIONFEE_IN', 'TUITIONFEE_OUT', 'TUITFTE', 'INEXPFTE', 'AVGFACSAL', 'D150_L4', 'D200_L4')
+                    
+
+           
+          
+dataset[,nums] <- lapply(dataset[,nums] , as.numeric)
+str(dataset) # now all dataset is either factor or numeric
+
+```
+
+
+
+```{r}
+#identifying categorical (text) variables
+categ <- unlist(lapply(dataset, is.factor))
+
+factors <-dataset[ ,categ]
+str(factors)
+
+```
+
+
+```{r}
+#identifying continous variables
+nums <- unlist(lapply(dataset, is.numeric))
+
+numerics <-dataset[ ,nums]
+str(numerics)
+```
+
+
+**********Imputation***************
+
+Numeric Imputation Excluding the varaibles involved in building the response variable from imputation
+
+```{r}
+
+#Responce <- c(dataset$MN_EARN_WNE_INC1_P10, dataset$TUITIONFEE_IN)
+#numerics[ , !(names(numerics) %in% Responce)]
+
+
+for(i in 1:ncol(numerics)){
+  numerics[is.na(numerics[,i]), i] <- mean(numerics[,i], na.rm = TRUE)
+
+}
+head(numerics)
+summary(numerics)
+summary(numerics$MN_EARN_WNE_INC1_P10) 
+summary(numerics$TUITIONFEE_IN)
+
+```
+
+
+
+Factor Imputation: using mode : Oscar I find this little confusing using mode  .
+```{r}
+
+
+Mode <- function (x, na.rm) {
+    xtab <- table(x)
+    xmode <- names(which(xtab == max(xtab)))
+    if (length(xmode) > 1) xmode <- ">1 mode"
+    return(xmode)
+}
+
+
+for (var in 1:ncol(factors)) {
+   # if (class(factors[,var])=="numeric") {
+   #     factors[is.na(factors[,var]),var] <- mean(factors[,var], na.rm = TRUE)
+   # } else if 
+   (class(factors[,var]) %in% c("character", "factor"))
+  
+#{
+        factors[is.na(factors[,var]),var] <- Mode(factors[,var], na.rm = TRUE)
+    }
+#}
+
+#print(factors)
+
+
+
+```
+
+
+
+
+# Count of missing data after imputation
+```{r}
+na_count3 <-sapply(dataset, function(y) sum(length(which(is.na(y)))))
+
+na_count3 <- data.frame(na_count3)
+
+#na_count3 <- na_count3[,]
+na_count3 <- na_count3[order(-na_count3),]
+
+#na_count3
+
+plot(na_count3)
+
+
+```
+
+
+
+
+***********************************Features Engineering*************************************FeaturesEngineering*******************
+
+
+#Step I- Create a response variable
+
+#studying tuition & MD_EARN_WNE_P10, MN_EARN_WNE_P10
+```{r}
+
+```
+
+OUr response variable is Return on Investment rate for education, using the tuition and the Income 10 years later. 
+we factored in the inflation rate for 10 years with inflation rate of 2.06%
+
+
+```{r}
+#ROI = Net Profit / Total Investment * 
+#2.06% per year inflation rate. (0.02) for 10 years
+
+#IN in state
+summary(dataset$MN_EARN_WNE_P10)
+summary(dataset$TUITIONFEE_IN)
+
+dataset$ROI <- (dataset$MN_EARN_WNE_P10/numerics$TUITIONFEE_IN*(1.02^6))*100
+
+#Not enough observation in outofState ROI. We will limit the study to in-state students 
+
+#numerics$ROI <- (((numerics$TUITIONFEE_OUT)*((1.02)^6))/numerics$MN_EARN_WNE_P10)*100
+
+```
+
+Exploring the response variable.
+```{r}
+summary(numerics$ROI)
+head(numerics$ROI)
+
+plot(numerics$ROI)
+```
+
+What is considered a good ROI?
+
+
+
+# STEP II- Summurizing predictors
+
+Create midpoint for variables that reported quartly or periodicaly. 
+
+# Computing AVG of SAT (AST_AVG is the score for equivalent test to SAT, same with SAT_AVG_ALL equivalent by campus)
+```{r}
+numerics$SAT_OVERALL <- mean(numerics$SATVR25, numerics$SATVR75, numerics$SATMT25, numerics$SATMT75, numerics$SATWR25, numerics$SATWR75, numerics$SATVRMID, numerics$SATMTMID, numerics$SATWRMID, numerics$SAT_AVG, numerics$SAT_AVG_ALL)
+
+# Drop vars used from SAT_AVG computation
+
+drops_SAT <- c("SATVR25", "SATVR75", "SATMT25", "SATMT75", "SATWR25", "SATWR75","SATVRMID","SATMTMID","SATWRMID", "SAT_AVG","SAT_AVG_ALL")
+
+
+numerics[ , !(names(numerics) %in% drops_SAT)]
+
+```
+
+
+
+# Computing AVG of ACT
+```{r}
+numerics$ACT_OVERALL <- mean(numerics$ACTCM25, numerics$ACTCM75, numerics$ACTEN25, numerics$ACTEN75, numerics$ACTMT25, numerics$ACTMT75, numerics$ACTWR25, numerics$ACTWR75, numerics$ACTCMMID, numerics$ACTENMID, numerics$ACTMTMID, numerics$ACTWRMID)
+
+# Drop vars used from SAT_AVG computation
+
+drops_ACT <- c("ACTCM25", "ACTCM75", "ACTEN25", "ACTEN75", "ACTMT25", "ACTMT75","ACTWR25","ACTWR75","ACTCMMID", "ACTENMID","ACTMTMID", "ACTWRMID")
+
+numerics[ , !(names(numerics) %in% drops_ACT)]
+
+```
+
+
+
+
+*******************Create CSV FILE*************************
+
+
+
+```{r}
+write.csv(dataset, file = "new_data.csv")
+```
+
